@@ -508,6 +508,43 @@ export class OrgChart {
         return this;
     }
 
+    // This function can be invoked via chart.addNode API, and it adds nodes in tree at runtime
+    addNodes(obj) {
+        if(!Array.isArray(obj)) {
+          console.log(`target is not array`);
+          return this;
+        }
+
+        const attrs = this.getChartState();
+
+        let validNode = [];
+        for (const newNode of obj) {
+          const nodeFound = attrs.allNodes.find(({ data }) => attrs.nodeId(data) === attrs.nodeId(newNode));
+          const parentFound = attrs.allNodes.find(({ data }) => attrs.nodeId(data) === attrs.parentNodeId(newNode));
+
+          if (nodeFound) {
+            console.log(`ORG CHART - ADD - Node with id "${attrs.nodeId(obj)}" already exists in tree`);
+            return this;
+          }
+
+          if (!parentFound) {
+            console.log(`ORG CHART - ADD - Parent node with id "${attrs.parentNodeId(obj)}" not found in the tree`);
+            return this;
+          }
+
+          newNode._expanded = true;
+
+          validNode.push(newNode);
+        }
+
+        attrs.data = attrs.data.concat(validNode);
+
+        // Update state of nodes and redraw graph
+        this.updateNodesState();
+
+        return this;
+    }
+
     // This function can be invoked via chart.removeNode API, and it removes node from tree at runtime
     removeNode(nodeId) {
         const attrs = this.getChartState();
