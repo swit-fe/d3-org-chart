@@ -93,6 +93,7 @@ export class OrgChart {
             compactMarginPair: d => 100,
             compactMarginBetween: (d3Node => 20),
             onNodeClick: (d) => d,
+            nodeClickCallBack:(d) => d,
             linkGroupArc: d3.linkHorizontal().x(d => d.x).y(d => d.y),
             // ({ source, target }) => {
             //     return 
@@ -869,6 +870,10 @@ export class OrgChart {
             data: (d) => [d]
         })
             .style('overflow', 'visible')
+            .on("click", (event, d) => {
+                const info = {event: event, node: d};
+                return attrs.nodeClickCallBack(info);
+            });
 
         // Add foreign object
         fo.patternify({
