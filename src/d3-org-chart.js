@@ -1111,7 +1111,9 @@ export class OrgChart {
             d.children = null;
 
             // Set descendants expanded property to false
-            this.setExpansionFlagToChildren(d, false);
+            if (d._children) {
+                d._children.forEach(({ data }) => (data._expanded = false));
+            }
         } else {
             // Expand children
             d.children = d._children;
@@ -1125,57 +1127,6 @@ export class OrgChart {
 
         // Redraw Graph
         this.update(d);
-    }
-
-    // This function changes `expanded` property to descendants
-    setExpansionFlagToChildren({ data, children, _children }, flag) {
-        // Set flag to the current property
-        data._expanded = flag;
-
-        // Loop over and recursively update expanded children's descendants
-        if (children) {
-            children.forEach((d) => {
-                this.setExpansionFlagToChildren(d, flag);
-            });
-        }
-
-        // Loop over and recursively update collapsed children's descendants
-        if (_children) {
-            _children.forEach((d) => {
-                this.setExpansionFlagToChildren(d, flag);
-            });
-        }
-    }
-
-
-    // Method which only expands nodes, which have property set "expanded=true"
-    expandSomeNodes(d) {
-        // If node has expanded property set
-        if (d.data._expanded) {
-            // Retrieve node's parent
-            let parent = d.parent;
-
-            // While we can go up
-            while (parent) {
-                // Expand all current parent's children
-                if (parent._children) {
-                    parent.children = parent._children;
-                }
-
-                // Replace current parent holding object
-                parent = parent.parent;
-            }
-        }
-
-        // Recursivelly do the same for collapsed nodes
-        if (d._children) {
-            d._children.forEach((ch) => this.expandSomeNodes(ch));
-        }
-
-        // Recursivelly do the same for expanded nodes
-        if (d.children) {
-            d.children.forEach((ch) => this.expandSomeNodes(ch));
-        }
     }
 
     // This function updates nodes state and redraws graph, usually after data change
@@ -1199,6 +1150,18 @@ export class OrgChart {
         attrs.root.each((node, i, arr) => {
             let width = attrs.nodeWidth(node);
             let height = attrs.nodeHeight(node);
+
+            node.data = {
+                ...node.data,
+                _directSubordinates: node.children ? node.children.length : 0,
+                _totalSubordinates: node.descendants().length - 1
+            }
+
+            if (node.data?._expanded === false) {
+                node._children = node.children;
+                node.children = null;
+            }
+            
             Object.assign(node, { width, height })
         })
 
@@ -1206,32 +1169,6 @@ export class OrgChart {
         attrs.root.x0 = 0;
         attrs.root.y0 = 0;
         attrs.allNodes = attrs.root.descendants();
-
-        // Store direct and total descendants count
-        attrs.allNodes.forEach((d) => {
-            Object.assign(d.data, {
-                _directSubordinates: d.children ? d.children.length : 0,
-                _totalSubordinates: d.descendants().length - 1
-            });
-        });
-
-        if (attrs.root.children) {
-            if (expandNodesFirst) {
-                // Expand all nodes first
-                attrs.root.children.forEach(this.expand);
-            }
-            // Then collapse them all
-            attrs.root.children.forEach((d) => this.collapse(d));
-
-            // Collapse root if level is 0
-            if (attrs.expandLevel == 0) {
-                attrs.root._children = attrs.root.children;
-                attrs.root.children = null;
-            }
-
-            // Then only expand nodes, which have expanded proprty set to true
-            [attrs.root].forEach((ch) => this.expandSomeNodes(ch));
-        }
     }
 
     // Function which collapses passed node and it's descendants
@@ -1315,7 +1252,7 @@ export class OrgChart {
             return this;
         }
         node.data._expanded = expandedFlag;
-        return this;
+        this.update(attrs.root);
     }
 
     setCentered(nodeId) {
@@ -1328,7 +1265,7 @@ export class OrgChart {
         }
         node.data._centered = true;
         node.data._expanded = true;
-        return this;
+        this.update(attrs.root);
     }
 
     setHighlighted(nodeId) {
@@ -1341,7 +1278,7 @@ export class OrgChart {
         node.data._highlighted = true;
         node.data._expanded = true;
         node.data._centered = true;
-        return this;
+        this.update(attrs.root);
     }
 
     setUpToTheRootHighlighted(nodeId) {
@@ -1354,7 +1291,7 @@ export class OrgChart {
         node.data._upToTheRootHighlighted = true;
         node.data._expanded = true;
         node.ancestors().forEach(d => d.data._upToTheRootHighlighted = true)
-        return this;
+        this.update(attrs.root);
     }
 
     clearHighlighting() {
@@ -1363,7 +1300,7 @@ export class OrgChart {
             d.data._highlighted = false;
             d.data._upToTheRootHighlighted = false;
         })
-        this.update(attrs.root)
+        this.update(attrs.root);
     }
 
     // It can take selector which would go fullscreen
@@ -1472,19 +1409,17 @@ export class OrgChart {
         return this;
     }
 
-    expandAll() {
-        const { allNodes, root } = this.getChartState();
-        allNodes.forEach(d => d.data._expanded = true);
-        this.render()
-        return this;
+    expandAll() {  // TODO TEST
+        const attrs = this.getChartState();
+        attr.allNodes.forEach(d => d.data._expanded = true);
+        this.update(attrs.root);
     }
 
-    collapseAll() {
-        const { allNodes, root } = this.getChartState();
-        allNodes.forEach(d => d.data._expanded = false);
-        this.expandLevel(0)
-        this.render();
-        return this;
+    collapseAll() { // TODO TEST
+        const attrs = this.getChartState();
+        attrs.allNodes.forEach(d => d.data._expanded = false);
+        this.expandLevel(0);
+        this.update(attrs.root);
     }
 
     downloadImage({ node, scale = 2, isSvg = false, save = true, onAlreadySerialized = d => { }, onLoad = d => { } }) {
