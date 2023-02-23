@@ -541,7 +541,7 @@ export class OrgChart {
         attrs.data = attrs.data.concat(validNode);
 
         // Update state of nodes and redraw graph
-        this.updateNodesState();
+        this.updateNodesState({addedList: validNode});
 
         return this;
     }
@@ -1172,17 +1172,24 @@ export class OrgChart {
     }
 
     // This function updates nodes state and redraws graph, usually after data change
-    updateNodesState() {
+    updateNodesState(config = {}) {
         const attrs = this.getChartState();
 
-        this.setLayouts({ expandNodesFirst: true });
+        this.setLayouts({ expandNodesFirst: true, ...config });
 
         // Redraw Graphs
         this.update(attrs.root);
     }
 
-    setLayouts({ expandNodesFirst = true }) {
+    setLayouts(config) {
+        let collapsedParent;
+        const { expandNodesFirst, addedList } = config;
         const attrs = this.getChartState();
+
+        if (expandNodesFirst && addedList) {
+            collapsedParent = attrs.allNodes.filter((nd) => nd._children).map((nd) => nd.id); // store before state of collapsed children
+        }
+
         // Store new root by converting flat data to hierarchy
         attrs.root = d3
             .stratify()
@@ -1204,13 +1211,25 @@ export class OrgChart {
                 node.children = null;
             }
             
-            Object.assign(node, { width, height })
-        })
+            Object.assign(node, { width, height });
+        });
 
         // Store positions, where children appear during their enter animation
         attrs.root.x0 = 0;
         attrs.root.y0 = 0;
-        attrs.allNodes = attrs.root.descendants();
+
+        if (collapsedParent) {
+            attrs.allNodes = attrs.root.descendants().map((d) => {
+                const target = collapsedParent.find((ndId) => ndId === d.id);
+                if (target) {
+                    d._children = d.children;
+                    d.children = null;
+                }
+                return d;
+            });
+        } else {
+            attrs.allNodes = attrs.root.descendants();
+        }
     }
 
     // Function which collapses passed node and it's descendants
